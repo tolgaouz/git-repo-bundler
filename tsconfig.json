@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    "target": "es2022",
+    "esModuleInterop": true,
+    "strict": true,
+    "lib": ["es2022"],
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "baseUrl": ".",
+    "types": ["bun-types"],
+    "paths": {
+      "*": ["node_modules/*"]
+    }
+  },
+  "include": ["**/*"],
+  "exclude": ["node_modules", "dist"]
+}
