@@ -43,7 +43,8 @@ const server = Bun.serve({
         if (!repoUrl || !componentPath) {
           return Response.json(
             {
-              success: false,
+              html: null,
+              js: null,
               error:
                 "Missing required parameters: repoUrl and componentPath are required",
             },
@@ -60,7 +61,8 @@ const server = Bun.serve({
         console.error("Bundle error:", error);
         return Response.json(
           {
-            success: false,
+            html: null,
+            js: null,
             error:
               error instanceof Error ? error.message : "Unknown error occurred",
           },
@@ -69,18 +71,6 @@ const server = Bun.serve({
             headers: corsHeaders,
           }
         );
-      }
-    }
-
-    // Serve static files from dist directory
-    if (req.method === "GET") {
-      const filePath = url.pathname === "/" ? "/index.html" : url.pathname;
-      const file = Bun.file(`./dist${filePath}`);
-
-      if (await file.exists()) {
-        return new Response(file, {
-          headers: corsHeaders,
-        });
       }
     }
 

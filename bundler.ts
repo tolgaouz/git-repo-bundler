@@ -3,19 +3,6 @@ import * as esbuild from "esbuild";
 import * as path from "path";
 import * as fs from "fs/promises";
 import { execSync } from "child_process";
-import { PackageJson } from "type-fest";
-
-async function getPackageInfo(repoPath: string): Promise<PackageJson> {
-  try {
-    const content = await fs.readFile(
-      path.join(repoPath, "package.json"),
-      "utf-8"
-    );
-    return JSON.parse(content);
-  } catch (error) {
-    throw new Error(`Failed to read package.json: ${error}`);
-  }
-}
 
 async function cloneRepo(
   repoUrl: string,
@@ -237,7 +224,6 @@ async function bundleComponent(
 
     const tsConfig = await getTsConfig(repoDir);
     const pathAliases = getPathAliasesFromTsConfig(tsConfig, repoDir);
-    const packageJson = await getPackageInfo(repoDir);
 
     // Run bun install
     execSync(`bun install`, {
@@ -277,7 +263,7 @@ async function bundleComponent(
       entryPoints: [entryFile],
       bundle: true,
       format: "esm",
-      outfile: path.join(process.cwd(), "dist/bundle.js"),
+      write: false,
       sourcemap: true,
       platform: "browser",
       loader: {
@@ -468,24 +454,19 @@ async function bundleComponent(
     await fs.rm(repoDir, { recursive: true, force: true });
 
     return {
-      success: true,
       html: htmlContent,
       js: bundledJs,
-      dependencies: {
-        ...packageJson.dependencies,
-        ...packageJson.peerDependencies,
-      },
     };
   } catch (error) {
-    // Clean up on error
+    return {
+      html: null,
+      js: null,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+  } finally {
     if (repoDir) {
       await fs.rm(repoDir, { recursive: true, force: true });
     }
-
-    return {
-      success: false,
-      error: error,
-    };
   }
 }
 
