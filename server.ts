@@ -40,6 +40,8 @@ const server = Bun.serve({
         };
         const { repoUrl, componentPath, branch = "main" } = body;
 
+        console.log("Received request:", { repoUrl, componentPath, branch });
+
         if (!repoUrl || !componentPath) {
           return Response.json(
             {
