@@ -1,6 +1,6 @@
 import { bundleComponent } from "./bundler";
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 
 const server = Bun.serve({
   port,

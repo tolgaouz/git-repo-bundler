@@ -3,6 +3,19 @@ import * as esbuild from "esbuild";
 import * as path from "path";
 import * as fs from "fs/promises";
 import { execSync } from "child_process";
+import { PackageJson } from "type-fest";
+
+async function getPackageInfo(repoPath: string): Promise<PackageJson> {
+  try {
+    const content = await fs.readFile(
+      path.join(repoPath, "package.json"),
+      "utf-8"
+    );
+    return JSON.parse(content);
+  } catch (error) {
+    throw new Error(`Failed to read package.json: ${error}`);
+  }
+}
 
 async function cloneRepo(
   repoUrl: string,
@@ -224,9 +237,10 @@ async function bundleComponent(
 
     const tsConfig = await getTsConfig(repoDir);
     const pathAliases = getPathAliasesFromTsConfig(tsConfig, repoDir);
+    const packageJson = await getPackageInfo(repoDir);
 
     // Run bun install
-    execSync(`bun install`, {
+    execSync(`npm install`, {
       cwd: repoDir,
       stdio: "inherit",
     });
@@ -265,7 +279,16 @@ async function bundleComponent(
       format: "esm",
       write: false,
       sourcemap: true,
+      external: ["node_modules/*"],
       platform: "browser",
+      tsconfigRaw: {
+        compilerOptions: {
+          module: "CommonJS",
+          target: "es2022",
+          esModuleInterop: true,
+          strict: true,
+        },
+      },
       loader: {
         ".js": "jsx",
         ".jsx": "jsx",
@@ -442,8 +465,6 @@ async function bundleComponent(
       ],
     });
 
-    console.log(jsBundle.outputFiles);
-
     // Get the bundled JS
     const bundledJs = jsBundle.outputFiles?.[0]?.text || "";
 
@@ -451,7 +472,6 @@ async function bundleComponent(
     const htmlContent = await generateHtmlTemplate();
 
     // Clean up
-    await fs.rm(repoDir, { recursive: true, force: true });
 
     return {
       html: htmlContent,
@@ -461,7 +481,6 @@ async function bundleComponent(
     return {
       html: null,
       js: null,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   } finally {
     if (repoDir) {
