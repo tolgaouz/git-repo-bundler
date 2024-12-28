@@ -1,4 +1,4 @@
-import { bundleComponent } from "./bundler";
+import { generateBundle } from "./bundler";
 
 const port = process.env.PORT || 3001;
 
@@ -35,20 +35,20 @@ const server = Bun.serve({
       try {
         const body = (await req.json()) as {
           repoUrl: string;
-          componentPath: string;
           branch?: string;
+          entryFileContent?: string;
+          imports?: string[];
         };
-        const { repoUrl, componentPath, branch = "main" } = body;
+        const { repoUrl, branch = "main", entryFileContent, imports } = body;
 
-        console.log("Received request:", { repoUrl, componentPath, branch });
+        console.log("Received request:", { repoUrl, branch });
 
-        if (!repoUrl || !componentPath) {
+        if (!repoUrl) {
           return Response.json(
             {
               html: null,
               js: null,
-              error:
-                "Missing required parameters: repoUrl and componentPath are required",
+              error: "Missing required parameters: repoUrl is required",
             },
             {
               status: 400,
@@ -57,7 +57,12 @@ const server = Bun.serve({
           );
         }
 
-        const result = await bundleComponent(repoUrl, componentPath, branch);
+        const result = await generateBundle({
+          repoUrl,
+          branch,
+          entryFileContent,
+          imports,
+        });
         return Response.json(result, { headers: corsHeaders });
       } catch (error) {
         console.error("Bundle error:", error);

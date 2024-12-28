@@ -17,11 +17,7 @@ async function getPackageInfo(repoPath: string): Promise<PackageJson> {
   }
 }
 
-async function cloneRepo(
-  repoUrl: string,
-  componentPath: string,
-  branch = "main"
-): Promise<string> {
+async function cloneRepo(repoUrl: string, branch = "main"): Promise<string> {
   const tmpBaseDir = path.join(process.cwd(), ".tmp");
   await fs.mkdir(tmpBaseDir, { recursive: true });
 
@@ -29,7 +25,7 @@ async function cloneRepo(
   const randomSuffix = Math.random().toString(36).substring(2, 15);
   const tmpDir = path.join(
     tmpBaseDir,
-    `component-bundler-${timestamp}-${randomSuffix}`
+    `repo-bundler-${timestamp}-${randomSuffix}`
   );
   await fs.mkdir(tmpDir, { recursive: true });
 
@@ -42,7 +38,7 @@ async function cloneRepo(
     return tmpDir;
   } catch (error) {
     if (branch !== "main") {
-      return cloneRepo(repoUrl, componentPath, "main");
+      return cloneRepo(repoUrl, "main");
     }
     throw new Error(`Failed to clone repository: ${error}`);
   }
@@ -117,7 +113,7 @@ async function findGlobalCssFiles(repoDir: string): Promise<string[]> {
   return cssFiles;
 }
 
-async function generateHtmlTemplate(): Promise<string> {
+async function generateHtmlTemplate(bundledJs: string): Promise<string> {
   return `
     <!DOCTYPE html>
     <html>
@@ -198,33 +194,30 @@ async function generateHtmlTemplate(): Promise<string> {
     <body>
       <div id="root"></div>
       <script type="module">
-        // Ensure styles are applied before rendering
-        document.addEventListener('DOMContentLoaded', (event) => {
-          // Import and execute the bundle
-          import('./bundle.js');
-        });
+        ${bundledJs}
       </script>
     </body>
     </html>`;
 }
 
-async function bundleComponent({
+export async function generateBundle({
   repoUrl,
-  componentPath,
   branch = "main",
   debug = false,
-  entryFileContent,
+  entryFileContent = "const View = () => { return <Button>Some Mock Data</Button> }",
+  imports = ["import { Button } from '@/components/ui/button'"],
 }: {
   repoUrl: string;
-  componentPath: string;
   entryFileContent?: string;
+  imports?: string[];
   branch?: string;
   debug?: boolean;
 }) {
   let repoDir: string | null = null;
 
   try {
-    repoDir = await cloneRepo(repoUrl, componentPath, branch);
+    console.log("Cloning repo:", repoUrl, branch);
+    repoDir = await cloneRepo(repoUrl, branch);
 
     // Find all global CSS files
     const globalCssFiles = await findGlobalCssFiles(repoDir);
@@ -254,17 +247,19 @@ async function bundleComponent({
       entryFile,
       `
       ${cssImports}
-      import { Button } from '@/components/ui/button';
       import React from 'react';
       import { createRoot } from 'react-dom/client';
+      ${imports.join(";\n")}
     
       const container = document.getElementById('root');
       if (!container) throw new Error('Root element not found');
+
+      ${entryFileContent}
       
       const root = createRoot(container);
       root.render(
         <React.StrictMode>
-          ${entryFileContent ?? "<Button>Some Mock Data</Button>"}
+          <View />
         </React.StrictMode>
       );
       `
@@ -447,8 +442,8 @@ async function bundleComponent({
     // Get the bundled JS
     const bundledJs = jsBundle.outputFiles?.[0]?.text || "";
 
-    // Generate HTML with inline CSS
-    const htmlContent = await generateHtmlTemplate();
+    // Generate HTML with inline JS bundle
+    const htmlContent = await generateHtmlTemplate(bundledJs);
 
     // If debug mode is on, write files to dist directory
     if (debug) {
@@ -476,5 +471,3 @@ async function bundleComponent({
     };
   }
 }
-
-export { bundleComponent };
