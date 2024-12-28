@@ -213,10 +213,12 @@ async function resolveModule(
   nodeModulesPath: string
 ): Promise<string | null> {
   try {
+    // First try to resolve from the node_modules directory
     return require.resolve(modulePath, {
-      paths: [nodeModulesPath],
+      paths: [nodeModulesPath, path.dirname(nodeModulesPath)],
     });
-  } catch {
+  } catch (err) {
+    console.log("Error resolving module", modulePath, err);
     return null;
   }
 }
@@ -224,7 +226,8 @@ async function resolveModule(
 async function bundleComponent(
   repoUrl: string,
   componentPath: string,
-  branch = "main"
+  branch = "main",
+  debug = false
 ) {
   let repoDir: string | null = null;
 
@@ -239,8 +242,10 @@ async function bundleComponent(
     const pathAliases = getPathAliasesFromTsConfig(tsConfig, repoDir);
     const packageJson = await getPackageInfo(repoDir);
 
+    console.log(repoDir);
+
     // Run bun install
-    execSync(`npm install`, {
+    execSync(`bun install`, {
       cwd: repoDir,
       stdio: "inherit",
     });
@@ -277,9 +282,11 @@ async function bundleComponent(
       entryPoints: [entryFile],
       bundle: true,
       format: "esm",
-      write: false,
-      sourcemap: true,
-      external: ["node_modules/*"],
+      minify: true,
+      write: debug,
+      ...(debug && { outfile: path.join(process.cwd(), "dist", "bundle.js") }),
+      nodePaths: [path.join(repoDir, "node_modules")],
+      sourcemap: false,
       platform: "browser",
       tsconfigRaw: {
         compilerOptions: {
@@ -393,12 +400,23 @@ async function bundleComponent(
           },
         },
         {
-          name: "resolve-imports",
+          name: "resolve-path-aliases",
           setup(build) {
-            build.onResolve({ filter: /.*/ }, async (args) => {
-              console.log("Resolving:", args.path, "from", args.importer);
+            // Create a regex pattern from the path aliases
+            const aliasPatterns = Array.from(pathAliases.keys())
+              .map((alias) => `^${alias}/`)
+              .join("|");
+            const aliasRegex = new RegExp(aliasPatterns);
 
-              // Handle path aliases (like @/lib/utils)
+            build.onResolve({ filter: aliasRegex }, async (args) => {
+              console.log("Resolving alias:", args.path, "from", args.importer);
+
+              const workingDir = build.initialOptions.absWorkingDir;
+              if (!workingDir) {
+                throw new Error("No working directory specified");
+              }
+
+              // Find matching alias
               for (const [alias, targetPath] of Array.from(
                 pathAliases.entries()
               )) {
@@ -426,39 +444,8 @@ async function bundleComponent(
                 }
               }
 
-              // Handle relative imports
-              if (args.path.startsWith(".")) {
-                const resolvedPath = path.resolve(
-                  path.dirname(args.importer),
-                  args.path
-                );
-                return { path: resolvedPath };
-              }
-
-              const nodeModulesPath = path.join(
-                repoDir as string,
-                "node_modules"
-              );
-
-              // First try to resolve the module directly - it might be already installed
-              const resolvedPath = await resolveModule(
-                args.path,
-                nodeModulesPath
-              );
-              if (resolvedPath) {
-                return { path: resolvedPath };
-              }
-
-              // Try to resolve the module again after installation
-              const finalResolvedPath = await resolveModule(
-                args.path,
-                nodeModulesPath
-              );
-              if (finalResolvedPath) {
-                return { path: finalResolvedPath };
-              }
-
-              throw new Error(`Could not resolve module: ${args.path}`);
+              // If we reach here, we couldn't resolve the aliased path
+              throw new Error(`Could not resolve aliased module: ${args.path}`);
             });
           },
         },
@@ -471,6 +458,18 @@ async function bundleComponent(
     // Generate HTML with inline CSS
     const htmlContent = await generateHtmlTemplate();
 
+    // If debug mode is on, write files to dist directory
+    if (debug) {
+      const distDir = path.join(process.cwd(), "dist");
+      console.log("Writing debug files to:", distDir);
+      await fs.mkdir(distDir, { recursive: true });
+
+      // Write HTML file
+      await fs.writeFile(path.join(distDir, "index.html"), htmlContent);
+
+      console.log("Debug files written to:", distDir);
+    }
+
     // Clean up
 
     return {
@@ -478,14 +477,11 @@ async function bundleComponent(
       js: bundledJs,
     };
   } catch (error) {
+    console.error("Error in bundleComponent:", error);
     return {
       html: null,
       js: null,
     };
-  } finally {
-    if (repoDir) {
-      await fs.rm(repoDir, { recursive: true, force: true });
-    }
   }
 }
 
