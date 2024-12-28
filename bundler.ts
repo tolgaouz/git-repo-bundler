@@ -208,27 +208,19 @@ async function generateHtmlTemplate(): Promise<string> {
     </html>`;
 }
 
-async function resolveModule(
-  modulePath: string,
-  nodeModulesPath: string
-): Promise<string | null> {
-  try {
-    // First try to resolve from the node_modules directory
-    return require.resolve(modulePath, {
-      paths: [nodeModulesPath, path.dirname(nodeModulesPath)],
-    });
-  } catch (err) {
-    console.log("Error resolving module", modulePath, err);
-    return null;
-  }
-}
-
-async function bundleComponent(
-  repoUrl: string,
-  componentPath: string,
+async function bundleComponent({
+  repoUrl,
+  componentPath,
   branch = "main",
-  debug = false
-) {
+  debug = false,
+  entryFileContent,
+}: {
+  repoUrl: string;
+  componentPath: string;
+  entryFileContent?: string;
+  branch?: string;
+  debug?: boolean;
+}) {
   let repoDir: string | null = null;
 
   try {
@@ -272,7 +264,7 @@ async function bundleComponent(
       const root = createRoot(container);
       root.render(
         <React.StrictMode>
-          <Button>Some Mock Data</Button>
+          ${entryFileContent ?? "<Button>Some Mock Data</Button>"}
         </React.StrictMode>
       );
       `
