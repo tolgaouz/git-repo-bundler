@@ -230,7 +230,7 @@ export async function generateBundle({
     console.log(repoDir);
 
     // Run bun install
-    execSync(`bun install`, {
+    execSync(`NODE_OPTIONS="--max-old-space-size=384" bun install`, {
       cwd: repoDir,
       stdio: "inherit",
     });
