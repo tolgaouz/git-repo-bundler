@@ -20,6 +20,9 @@ FROM base as build
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential pkg-config python-is-python3
 
+# Install git
+RUN apt-get install -y git
+
 # Install node modules
 COPY bun.lockb package.json ./
 RUN bun install --ci
