@@ -1,9 +1,10 @@
 import { generateBundle } from "./bundler";
 
-const port = process.env.PORT || 3001;
+const port = 3001;
 
 const server = Bun.serve({
   port,
+  hostname: "0.0.0.0",
   async fetch(req) {
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
