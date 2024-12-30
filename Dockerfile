@@ -12,6 +12,10 @@ WORKDIR /app
 # Set production environment
 ENV NODE_ENV="production"
 
+# Install git and other necessary packages in base image
+RUN apt-get update -qq && \
+    apt-get install -y git && \
+    rm -rf /var/lib/apt/lists/*
 
 # Throw-away build stage to reduce size of final image
 FROM base as build
@@ -20,16 +24,12 @@ FROM base as build
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential pkg-config python-is-python3
 
-# Install git
-RUN apt-get install -y git
-
 # Install node modules
 COPY bun.lockb package.json ./
 RUN bun install --ci
 
 # Copy application code
 COPY . .
-
 
 # Final stage for app image
 FROM base
